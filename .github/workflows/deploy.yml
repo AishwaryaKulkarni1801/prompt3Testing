@@ -1,4 +1,4 @@
-name: 🚀 Deploy Angular App to GitHub Pages
+name: Deploy Angular App to GitHub Pages
 
 on:
   push:
@@ -11,44 +11,59 @@ permissions:
   id-token: write
 
 concurrency:
-  group: 'pages'
+  group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name:  Checkout Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name:  Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 'lts/*'
+          cache: 'npm'
 
-      - name: 📦 Install Dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: 🏗️ Build Angular App
+      - name: Detect Angular Project Name
+        id: detect-project
+        run: |
+          PROJECT_NAME=$(node -e "
+            const fs = require('fs');
+            const angular = JSON.parse(fs.readFileSync('angular.json', 'utf8'));
+            const defaultProject = angular.defaultProject || Object.keys(angular.projects)[0];
+            console.log(defaultProject);
+          ")
+          echo "project-name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "Detected Angular project: $PROJECT_NAME"
+
+      - name: Build Angular App
         run: |
           npm run build -- --base-href "/${{ github.event.repository.name }}/"
-          cp dist/prompt3-testing/index.html dist/prompt3-testing/404.html
+          echo "Build completed for project: ${{ steps.detect-project.outputs.project-name }}"
 
-      - name: ⚙️ Setup Pages
-        uses: actions/configure-pages@v5
+      - name: Copy index.html to 404.html for SPA routing
+        run: |
+          PROJECT_NAME="${{ steps.detect-project.outputs.project-name }}"
+          cp "dist/$PROJECT_NAME/index.html" "dist/$PROJECT_NAME/404.html"
+          echo "Copied index.html to 404.html for SPA routing support"
 
-      - name: 📤 Upload Build Artifact
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/prompt3-testing
+          path: dist/${{ steps.detect-project.outputs.project-name }}
 
-  deploy:
-    environment:
-      name: production
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: 🚀 Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
