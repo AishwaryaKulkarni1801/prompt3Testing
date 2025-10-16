@@ -33,17 +33,24 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Detect Angular Project Name
+      - name: Detect Angular Project Name and Output Path
         id: detect-project
         run: |
           PROJECT_NAME=$(node -e "
             const fs = require('fs');
             const angular = JSON.parse(fs.readFileSync('angular.json', 'utf8'));
             const defaultProject = angular.defaultProject || Object.keys(angular.projects)[0];
-            console.log(defaultProject);
+            const outputPath = angular.projects[defaultProject].architect.build.options.outputPath;
+            console.log(JSON.stringify({ projectName: defaultProject, outputPath: outputPath }));
           ")
-          echo "project-name=$PROJECT_NAME" >> $GITHUB_OUTPUT
-          echo "Detected Angular project: $PROJECT_NAME"
+          PROJECT_OUTPUT=$(echo $PROJECT_NAME | node -e "
+            const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+            console.log(input.outputPath.replace('dist/', ''));
+          ")
+          echo "project-name=$(echo $PROJECT_NAME | node -e "const input = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(input.projectName);")" >> $GITHUB_OUTPUT
+          echo "output-folder=$PROJECT_OUTPUT" >> $GITHUB_OUTPUT
+          echo "Detected Angular project: $(echo $PROJECT_NAME | node -e "const input = JSON.parse(require('fs').readFileSync(0, 'utf8')); console.log(input.projectName);")"
+          echo "Output folder: $PROJECT_OUTPUT"
 
       - name: Build Angular App
         run: |
@@ -52,8 +59,8 @@ jobs:
 
       - name: Copy index.html to 404.html for SPA routing
         run: |
-          PROJECT_NAME="${{ steps.detect-project.outputs.project-name }}"
-          cp "dist/$PROJECT_NAME/index.html" "dist/$PROJECT_NAME/404.html"
+          OUTPUT_FOLDER="${{ steps.detect-project.outputs.output-folder }}"
+          cp "dist/$OUTPUT_FOLDER/index.html" "dist/$OUTPUT_FOLDER/404.html"
           echo "Copied index.html to 404.html for SPA routing support"
 
       - name: Setup GitHub Pages
@@ -62,7 +69,7 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/${{ steps.detect-project.outputs.project-name }}
+          path: dist/${{ steps.detect-project.outputs.output-folder }}
 
       - name: Deploy to GitHub Pages
         id: deployment
