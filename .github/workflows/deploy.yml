@@ -32,7 +32,7 @@ jobs:
       - name: 🏗️ Build Angular App
         run: |
           npm run build -- --base-href "/${{ github.event.repository.name }}/"
-          cp dist/prompt3Testing/index.html dist/prompt3Testing/404.html
+          cp dist/prompt3-testing/index.html dist/prompt3-testing/404.html
 
       - name: ⚙️ Setup Pages
         uses: actions/configure-pages@v5
@@ -40,7 +40,7 @@ jobs:
       - name: 📤 Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/prompt3Testing
+          path: dist/prompt3-testing
 
   deploy:
     environment:
